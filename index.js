@@ -1,8 +1,13 @@
 const { Client, MessageEmbed } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
-const cld = require('cld');
 const aws = require('aws-sdk');
+const {
+  ComprehendClient 
+} = require('@aws-sdk/client-comprehend-node/ComprehendClient');
+const {
+  BatchDetectDominantLanguageCommand 
+} = require('@aws-sdk/client-comprehend-node/commands/BatchDetectDominantLanguageCommand');
 
 const DEFAULT_LANG = 'EN';
 const AUTH_FILE = './auth.json';
@@ -73,6 +78,8 @@ client.on('message', async message => {
       return;
   }
 
+  if (message.content === '') return;
+  if (message.content.startsWith('http')) return;
   if (!message.guild) return;
   if (!message.member.voice.channel) return;
   const channelName = message.member.voice.channel.name;
@@ -103,13 +110,30 @@ client.on('message', async message => {
 
   let langCode;
   let voiceId;
+
   try {
-    const detectedLangs = await cld.detect(message.content)
-    langCode = detectedLangs.languages[0].code;
+    const params = {
+      TextList: [
+        message.content,
+      ]
+    };
+    const batchDetectDominantLanguageCommand = new BatchDetectDominantLanguageCommand(
+      params
+    );
+
+    const data = await comprehend.send(batchDetectDominantLanguageCommand);
+    // use the highest possible language.
+    langCode = data.ResultList[0].Languages[0].LanguageCode;
+    console.log(langCode + ': ' + JSON.stringify(data));
   } catch (error) {
-    message.reply('Failed to detect language/言語の検知に失敗しました');
-    console.log(error);
-    return;
+    const metadata = error.$metadata;
+    console.log(`requestId: ${metadata.requestId} cfId: ${metadata.cfId} extendedRequestId: ${metadata.extendedRequestId}`);
+    /*
+  The keys within exceptions are also parsed. You can access them by specifying exception names:
+      if(error.name === 'SomeServiceException') {
+          const value = error.specialKeyInException;
+      }
+  */
   }
 
   if (langCode === 'en') {
@@ -117,9 +141,18 @@ client.on('message', async message => {
   } else {
     langCode = awsLanguageCode.find(l => l.startsWith(langCode));
     if (!langCode) {
-      message.reply('Failed to find language code/言語コードの検知に失敗しました');
-      return;
+      message.reply('Failed to detect language/言語の検知に失敗しました - using default');
+      langCode = 'ja-JP'
     }
+  }
+
+  let text = message.content;
+  if (isKusa(text)) {
+    text = text.replace('w+', 'くさ').replace('ｗ+', 'くさ');
+  }
+  text = text.replace(/<@!.+?>/, ''); // remove user name
+  if (text === '') {
+    return;   // TODO
   }
   
   const voiceParam = {
@@ -131,7 +164,7 @@ client.on('message', async message => {
     } else if (data) {
       voiceId = data.Voices.find(v => v.Gender === 'Female').Id;
       const param = {
-        'Text': message.content,
+        'Text': text,
         'OutputFormat': 'mp3',
         'VoiceId': voiceId,
         'LanguageCode': langCode,
@@ -141,6 +174,11 @@ client.on('message', async message => {
   })
 
 });
+
+
+function isKusa(text) {
+  return text.match('w+') || text.match('ｗ+');
+}
 
 const getAndPlayTTS = (param, message, streaming) => {
   Polly.synthesizeSpeech(param, (err, data) => {
@@ -152,7 +190,7 @@ const getAndPlayTTS = (param, message, streaming) => {
         const filename = './ttsdata/' + message.author.id + '.mp3';
         fs.writeFileSync(filename, data.AudioStream)
         const dispatcher = streaming.vc.play(filename, {
-          volume: 0.2,
+          volume: 0.6,
         })
         .on('finish', () => {
           console.log('play done');
@@ -186,7 +224,15 @@ if (process.env.KEEP_ALIVE_ENDPOINT) {
 
 const Polly = new aws.Polly({
   signatureVersion: 'v4',
-  region: 'us-east-1',
+  region: 'eu-central-1',
+  credentials: {
+    accessKeyId: access_key_id,
+    secretAccessKey: secret_access_key,
+  }
+});
+const comprehend = new ComprehendClient({
+  signatureVersion: 'v4',
+  region: 'eu-central-1',
   credentials: {
     accessKeyId: access_key_id,
     secretAccessKey: secret_access_key,
