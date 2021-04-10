@@ -4,16 +4,19 @@
   "description": "text-to-speech bot",
   "main": "build/index.js",
   "scripts": {
-    "test": "test"
+    "test": "test",
+    "start": "node ./index.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-comprehend-node": "0.1.0-preview.2",
     "@discordjs/opus": "^0.3.2",
     "@types/aws-sdk": "^2.7.0",
+    "@types/node": "^14.6.0",
+    "@types/typescript": "^2.0.0",
     "aws-sdk": "^2.734.0",
     "axios": "^0.19.2",
-    "cld": "^2.7.0",
     "discord.js": "^12.3.0",
     "node-addon-api": "^3.0.0"
   }
