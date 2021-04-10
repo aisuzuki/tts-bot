@@ -3,10 +3,10 @@ const axios = require('axios');
 const fs = require('fs');
 const aws = require('aws-sdk');
 const {
-  ComprehendClient
+  ComprehendClient 
 } = require('@aws-sdk/client-comprehend-node/ComprehendClient');
 const {
-  BatchDetectDominantLanguageCommand
+  BatchDetectDominantLanguageCommand 
 } = require('@aws-sdk/client-comprehend-node/commands/BatchDetectDominantLanguageCommand');
 
 const DEFAULT_LANG = 'EN';
