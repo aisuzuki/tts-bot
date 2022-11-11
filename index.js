@@ -214,25 +214,36 @@ if (!message.member.voice.channel) {
 
     const data = await comprehend.send(batchDetectDominantLanguageCommand);
     // use the highest possible language.
-    const langCode = data.ResultList[0].Languages[0].LanguageCode;
+    let langCode = data.ResultList[0].Languages[0].LanguageCode;
     console.log(langCode + ': ' + JSON.stringify(data));
+    if (langCode === 'no') {
+        langCode = 'nb';
+    }
 
-    audioConf = USERCONF[message.author.username][langCode];
+    if (USERCONF[message.author.username]) {
+      audioConf = USERCONF[message.author.username][langCode];
+    }
+	 
     if (audioConf) {
+      console.log("Polly use audio conf: " + audioConf.languageCode);
       languageCode = audioConf.languageCode;
     } else if (langCode === 'en') {
+      console.log("Polly default en-GB");
       languageCode = 'en-GB';   // you know why.
     } else {
       languageCode = POLLY_VALUES.languageCode.find(l => l.startsWith(langCode));
+      console.log("Polly language code: " + languageCode + ", langCode: " + langCode);
       if (!languageCode) {
         message.reply('Failed to detect language/言語の検知に失敗しました [' + langCode + '] - using default : ja-JP');
         languageCode = 'ja-JP'
       }
     }
+    console.log("Polly final language code: " + languageCode);
 
   } catch (error) {
-    const metadata = error.$metadata;
-    console.log(`requestId: ${metadata.requestId} cfId: ${metadata.cfId} extendedRequestId: ${metadata.extendedRequestId}`);
+    console.log('request error: ' + error);
+//    const metadata = error.$metadata;
+//    console.log(`requestId: ${metadata.requestId} cfId: ${metadata.cfId} extendedRequestId: ${metadata.extendedRequestId}`);
     /*
   The keys within exceptions are also parsed. You can access them by specifying exception names:
       if(error.name === 'SomeServiceException') {
@@ -260,7 +271,7 @@ if (!message.member.voice.channel) {
         'OutputFormat': 'mp3',
         'VoiceId': voice.Id,
         'LanguageCode': languageCode,
-        //        'Engine': voice.SupportedEngines,
+        'Engine': voice.SupportedEngines.find(e => e === "neural") ? "neural" : "standard"
       }
       getAndPlayTTS(param, message, streaming);
     }
@@ -277,6 +288,7 @@ const getAndPlayTTS = (param, message, streaming) => {
   Polly.synthesizeSpeech(param, (err, data) => {
     if (err) {
       message.reply('Failed to call aws polly/aws polly の呼び出しに失敗しました');
+      console.log("failed to call polly reason: " + err)
       return;
     } else if (data) {
       if (data.AudioStream instanceof Buffer) {
